@@ -34,6 +34,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define BUFFERSIZE 2048
+//#define BUFFERSIZE 4096
 #define MIN(a,b) (((a)<(b))? (a):(b))
 
 /* USER CODE END PD */
@@ -72,6 +73,8 @@ static void MX_TIM4_Init(void);
 extern uint8_t *__USER_DATA;
 uint8_t flg_dma_done;
 
+//int beep_count = 3; //example variable.
+
 /* USER CODE END 0 */
 
 /**
@@ -81,7 +84,8 @@ uint8_t flg_dma_done;
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	int beep_count = 3; //example variable.
+	float volume_scale = 0.05f;  // Volume control (0.0 to 1.0)
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -137,6 +141,8 @@ int main(void)
   {
 	  // ボタンが押されていたら実行
 	  if (HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) {
+
+		  for(int i = 0; i < beep_count; i++){
 		  // beep
 		  int16_t *pp = (int16_t *)p;
 		  uint16_t dmaBuf[2][BUFFERSIZE];
@@ -152,8 +158,16 @@ int main(void)
 				  int16_t v0 = *pp;
 				  pp++;
 				  int32_t v = v0;
-				  v >>= 4;
-				  v += 2047;
+
+				  //testing volume adjustment
+				  	  // Apply volume scaling
+				      v = (int32_t)(v * volume_scale);
+				      // Ensure the value stays within the valid DAC range (0 to 4095)
+				      //v = MIN(4095, MAX(0, v));  // Clamping between 0 and 4095
+				  //
+
+				  v >>= 4;//shifts value down to 12 bits
+				  v += 2047;//applies offset to make it positive
 
 				  dmaBuf[bank][i] = v & 0x0fff;
 			  }
@@ -171,14 +185,60 @@ int main(void)
 		  }
 
 		  HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
-	  }
+		  }
+	  }//for beep_count
+	}
 
+	  //tried something didn't work.
+/*	  if (HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET) {
+	        // Stop any ongoing DMA and DAC transfer before starting a new playback
+	        HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1); // Stop DAC DMA
+	        flg_dma_done = 1; // Ensure no DMA transfer is running
 
+	        // Start the new playback from the beginning
+	        int16_t *pp = (int16_t *)p;
+	        uint16_t dmaBuf[2][BUFFERSIZE];
+	        int bank = 0;
+
+	        int count = samples;
+	        while (0 < count) {
+	          const int blksize = MIN(samples, BUFFERSIZE);
+
+	          // Prepare the audio data for DMA transfer (scale and offset)
+	          for (int i = 0; i < blksize; i++) {
+	            int16_t v0 = *pp;
+	            pp++;
+	            int32_t v = v0;
+	            v >>= 4;
+	            v += 2047;
+
+	            dmaBuf[bank][i] = v & 0x0fff;
+	          }
+
+	          // Wait for previous DMA to complete if needed
+//	          while (!flg_dma_done) {
+	            __NOP();
+	          }
+
+	          flg_dma_done = 0; // Reset the flag for the next DMA cycle
+
+	          // Start the DMA transfer for the next chunk
+	          HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)dmaBuf[bank], blksize, DAC_ALIGN_12B_R);
+
+	          // Toggle the buffer bank for double buffering
+	          bank = !bank;
+	          count -= blksize;
+	        }
+
+	        // Stop DAC once the audio finishes
+	        HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
+	      }
+	    }*/
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+  //}
   /* USER CODE END 3 */
 }
 
